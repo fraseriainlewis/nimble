@@ -1,16 +1,15 @@
 Package: rnimble
 Type: Package
-Title: What the Package Does (Title Case )
+Title: Takes a glm fitted via rstanarm and fits it using nimble
 Version: 0.1.0
 Authors@R: c(
     person(
-      "Jane", "Doe",
-      email = "jane@example.com",
+      "Fraser", "Lewis",
+      email = "fraser.iain.lewis@gmail.com",
       role = c("aut", "cre")
     )
   )
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
+Description: Purpose of this package is to facility quick and easy checks on posterior parameter estimates for generalized linear models by comparing MCMC output stan and nimble libraries. The core functionality involves passing results from a previously run stan_glm() analysis.
 Imports:
   rstanarm
 License: What license is it under?

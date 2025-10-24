@@ -26,7 +26,14 @@ nimble_glm <- function(stanobj,
                        thin = 1,
                        chains = 1) {
 
- #useful note - if intercept is ommited then stop as suggests not centering - not implemented
+ #useful note - if intercept is omited then stop as suggests not centering - not implemented
+ # step 1. checking that arguments passed are valid - TO DO LAST
+ # step 2. decide on family of model
+ if(stanobj$family$family =="gaussian"){
+   # pass to Gaussian modelling function
+   # code = str2expression((string form of nimble model))
+   nimbleModelexpr<-build_lm(stanobj); #decontruct object and build full model definition
+ }
 
 
   print("Hello, world!")
