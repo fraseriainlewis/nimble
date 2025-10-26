@@ -1,20 +1,90 @@
-#### This file is not as mature as normal_v1.R because it uses non-centred variables
-#### and hard coded priors - simply to see if can get tfp to work. tpf can be very tricky
-#### due to broadcasting and surprises. it take lots of work to get tfd_...sequential to work here
-####
-#### to-do - tidy code to use linear algebra, use other sample perhaps - dual adaptation,
-#### and also use tf_function for speed. These are nice to have though.
-#### as above this is not yet match rstanarm for linear because of centering etc.
-#library(tensorflow)
-#install_tensorflow(extra_packages = c("keras", "tensorflow-hub", "tensorflow-probability"))
-
+library(tensorflow)
 library(tfprobability)
-d <- tfd_binomial(total_count = 7, probs = 0.3)
-
-tensorflow::tf_config()
-
 library(zeallot)
 library(purrr)
+library(emdbook)
+reticulate::py_require("tensorflow-metal")
+data("ReedfrogPred")
+d <- ReedfrogPred
+str(d)
+
+n_tadpole_tanks <- nrow(d)
+n_surviving <- d$surv
+n_start <- d$density
+
+model <- tfd_joint_distribution_sequential(
+  list(
+    # a_bar, the prior for the mean of the normal distribution of per-tank logits
+    tfd_normal(loc = 0, scale = 1.5),
+    # sigma, the prior for the variance of the normal distribution of per-tank logits
+    tfd_exponential(rate = 1),
+    # normal distribution of per-tank logits
+    # parameters sigma and a_bar refer to the outputs of the above two distributions
+    function(sigma, a_bar)
+      tfd_sample_distribution(
+        tfd_normal(loc = a_bar, scale = sigma),
+        sample_shape = list(n_tadpole_tanks)
+      ),
+    # binomial distribution of survival counts
+    # parameter l refers to the output of the normal distribution immediately above
+    function(l)
+      tfd_independent(
+        tfd_binomial(total_count = n_start, logits = l),
+        reinterpreted_batch_ndims = 1
+      )
+  )
+)
+
+s <- model %>% tfd_sample(2)
+s
+
+model %>% tfd_log_prob(s)
+
+logprob <- function(a, s, l)
+  model %>% tfd_log_prob(list(a, s, l, n_surviving))
+
+# number of steps after burnin
+n_steps <- 500
+# number of chains
+n_chain <- 4
+# number of burnin steps
+n_burnin <- 500
+
+hmc <- mcmc_hamiltonian_monte_carlo(
+  target_log_prob_fn = logprob,
+  num_leapfrog_steps = 3,
+  # one step size for each parameter
+  step_size = list(0.1, 0.1, 0.1),
+) %>%
+  mcmc_simple_step_size_adaptation(target_accept_prob = 0.8,
+                                   num_adaptation_steps = n_burnin)
+
+# initial values to start the sampler
+c(initial_a, initial_s, initial_logits, .) %<-% (model %>% tfd_sample(n_chain))
+
+# optionally retrieve metadata such as acceptance ratio and step size
+trace_fn <- function(state, pkr) {
+  list(pkr$inner_results$is_accepted,
+       pkr$inner_results$accepted_results$step_size)
+}
+
+run_mcmc <- function(kernel) {
+  kernel %>% mcmc_sample_chain(
+    num_results = n_steps,
+    num_burnin_steps = n_burnin,
+    current_state = list(initial_a, tf$ones_like(initial_s), initial_logits),
+    trace_fn = trace_fn
+  )
+}
+
+run_mcmc <- tf_function(run_mcmc)
+res <- run_mcmc(hmc)
+
+###############################
+
+
+tensorflow::tf_config()
+tensorflow::tf_version()
 
 library(rstanarm)
 data(mtcars)
@@ -85,7 +155,7 @@ n_chain <- 1
 # number of burnin steps
 n_burnin <- 10000
 
-hmc <- mcmc_hamiltonian_monte_carlo(
+if(TRUE){hmc <- mcmc_hamiltonian_monte_carlo(
   target_log_prob_fn = logprob,
   num_leapfrog_steps = 3,
   # one step size for each parameter
@@ -94,6 +164,21 @@ hmc <- mcmc_hamiltonian_monte_carlo(
 ) %>%
   mcmc_simple_step_size_adaptation(target_accept_prob = 0.8,
                                    num_adaptation_steps = n_burnin)
+}
+if(FALSE){hmc_kernel <- mcmc_hamiltonian_monte_carlo(
+  target_log_prob_fn = logprob,
+  num_leapfrog_steps = 3,
+  # one step size for each parameter
+  step_size = list(0.5, 0.5, 0.5,0.5),
+  seed=99999
+)
+
+adaptive_hmc_kernel <- tfp$mcmc$DualAveragingStepSizeAdaptation(
+  inner_kernel = hmc_kernel,
+  num_adaptation_steps = as.integer(n_burnin),
+  target_accept_prob = 0.8
+)
+}
 
 # initial values to start the sampler
 c(alpha, beta_wt,beta_am,phi, .) %<-% (m %>% tfd_sample(n_chain))
@@ -125,12 +210,15 @@ plot(mcmc_trace[[2]],type="l")
 plot(mcmc_trace[[3]],type="l")
 plot(mcmc_trace[[4]],type="l")
 
+rmod<-lm(mpg~1+wt+am,data=mtcars)
+summary(rmod)
+
 mean(mcmc_trace[[1]])
 mean(mcmc_trace[[2]])
 mean(mcmc_trace[[3]])
 mean(mcmc_trace[[4]])
 
-## now compare with stan results
+
 ##########################################
 library(rstan)
 rstan_options(auto_write = TRUE)
