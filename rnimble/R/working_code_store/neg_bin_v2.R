@@ -10,6 +10,10 @@ theme_set(bayesplot::theme_default())
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
+library(tensorflow)
+library(tfprobability)
+
+library(rstanarm)
 library(rstanarm)
 data(roaches)
 
@@ -223,39 +227,25 @@ neg_binom_regression_code <- nimbleCode({
   }
 })
 
+##### This part is important as the parameterization for tensorflow neg bin is
+##### opposite from usual, it is number of successes s, until we observe f failures
+##### which is opposite from R or nimble which is f failures until s successes
+##### means need to flip probs
 if(FALSE){
-
-  mu <-
-  f <- 5.0 # number of failures observed until s successes, s is the rv
-
-  # Calculate probs
-  probs <- 1/(1+mu/r)#r / (r + mu)
-
-  mu<-0.555555
-  f<-5
-  p<-f/(f+mu)
+  # a check
+  mu<-0.555555 # mean
+  f<-2 # number of failures - a fixed parameter
+  p<-f/(f+mu) # transform mu and f in prob p parameter
 
   # Create distribution
   dist <- tfd_negative_binomial(
-    total_count = 5, #f
-    probs = 1-p
+    total_count = f, #f
+    probs = 1-p # essential so matches with R param
   )
 
-  # Verify
-  dist$mean() # mean = f * (p/(1-p))
-  dist$stddev()
-  mean(rnbinom(1e5,size=5,prob=1-p))
-  sd(rnbinom(1e5,size=5,prob=1-p))
-
-  plot(dist$sample(10000))
-  plot(rnbinom(10000,size=5,prob=1-p))
-
-  par(mfrow=c(1,2))
-  plot(exp(dist$log_prob(seq(0,10,by=1))))
-  plot(dbinom(seq(0,10,by=1),size=5,prob=p))
-
-
-
+  # Verify - so parameter 1-p in both nimble and tf gives same mass function
+  exp(dist$log_prob(seq(0,5,by=1)))
+  dnbinom(0:10,size=f,prob=p)
 }
 
 # --- 3. Prepare Data, Constants, and Initial Values ---
@@ -502,11 +492,11 @@ m <- tfd_joint_distribution_sequential(
 )
 
 # Simulate 3 samples
-s<-m %>% tfd_sample(1L)
+#s<-m %>% tfd_sample(1L)
 # s<-m %>% tfd_sample(2)
 # m %>% tfd_log_prob(s)
 
-table(as.numeric(s[[6]]))
+#table(as.numeric(s[[6]]))
 
 #intercept_0=alpha + beta_wt*-mean_wt + beta_am*-mean_am;
 
@@ -518,31 +508,15 @@ logprob(0.1,0.2,0.3,0.5,0.1)
 
 
 # number of steps after burnin
-n_steps <- 20000
+n_steps <- 100000
 # number of chains
 n_chain <- 1
 # number of burnin steps
 n_burnin <- 20000
 
+set.seed(99999)
 
-hmc<-mcmc_slice_sampler(
-  target_log_prob_fn = logprob,
-  step_size=0.5,
-  max_doublings=5,
-  seed=9999)
-
-hmc <-mcmc_metropolis_hastings(
-    mcmc_uncalibrated_hamiltonian_monte_carlo(
-      target_log_prob_fn=logprob,
-      step_size=0.5,
-      num_leapfrog_steps=3))%>% mcmc_dual_averaging_step_size_adaptation(
-num_adaptation_steps = round(n_burnin*0.8),
-target_accept_prob = 0.25,
-exploration_shrinkage = 0.05,
-step_count_smoothing = 10,
-decay_rate = 0.75)
-
-if(FALSE){hmc <- mcmc_hamiltonian_monte_carlo(
+hmc <- mcmc_hamiltonian_monte_carlo(
   target_log_prob_fn = logprob,
   num_leapfrog_steps = 3,
   # one step size for each parameter
@@ -559,24 +533,7 @@ if(FALSE){hmc <- mcmc_hamiltonian_monte_carlo(
    log_accept_prob_getter_fn = NULL,
    validate_args = FALSE,
    name = NULL#,
-  #reduce_fn=tfp.math.reduce_logmeanexp,
 )
-}
-
-
-#mcmc_simple_step_size_adaptation(target_accept_prob = 0.8,
-#                                 num_adaptation_steps = round(n_burnin*0.8))
-
-
-#hmc <-mcmc_metropolis_hastings(
-#  mcmc_uncalibrated_hamiltonian_monte_carlo(
-#    target_log_prob_fn=logprob,
-#    step_size=0.5,
-#    num_leapfrog_steps=3))
-
-#mcmc_simple_step_size_adaptation(target_accept_prob = 0.8,
-#                                 num_adaptation_steps = n_burnin)
-
 
 # initial values to start the sampler - from prior
 c(alpha, beta_roach1,beta_treatment,beta_senior,phi, .) %<-% (m %>% tfd_sample(n_chain))
