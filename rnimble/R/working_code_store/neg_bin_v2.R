@@ -38,7 +38,7 @@ stan_glm1 <- stan_glm(y ~ roach1 + treatment + senior, offset = log(exposure2),
                       prior_intercept = normal(0, 5),
                       seed = 12345,
                       warmup = 10000,      # Number of warmup iterations per chain
-                      iter = 100000,        # Total iterations per chain (warmup + sampling)
+                      iter = 20000,        # Total iterations per chain (warmup + sampling)
                       thin = 1,
                       chains = 4)           # Thinning rate)
 res_m<-as.matrix(stan_glm1)
@@ -151,7 +151,7 @@ fit <- stan(
   data = stan_data,
   chains = 4,         # Number of MCMC chains
   warmup = 10000,      # Number of warmup iterations per chain
-  iter = 100000,        # Total iterations per chain (warmup + sampling)
+  iter = 20000,        # Total iterations per chain (warmup + sampling)
   thin = 1,           # Thinning rate
   seed = 12345,          # For reproducibility
   control = list(adapt_delta = 0.95, max_treedepth = 15) # Adjust for sampling issues if needed
@@ -306,7 +306,7 @@ C_mcmc <- compileNimble(mcmc_build, project = R_model)
 
 # Run MCMC
 # Using multiple chains to check for convergence
-n_iter <- 100000 # Total iterations
+n_iter <- 20000 # Total iterations
 n_burnin <- 10000 # Burn-in period
 n_chains <- 4 # Number of MCMC chains
 n_thin <- 1 # Thinning interval
@@ -374,10 +374,7 @@ lines(density(res2$phi),col="orange")
 lines(density(size_disp_nim),col="slateblue")
 
 
-
-
-
-pdf("plot_negbin1.pdf")
+if(FALSE){pdf("plot_negbin1.pdf")
 par(mfrow=c(1,1))
 plot(density(res_m[,"(Intercept)"]),col="green")
 lines(density(res2$alpha),col="orange")
@@ -400,7 +397,7 @@ lines(density(res2$phi),col="orange")
 lines(density(size_disp_nim),col="slateblue")
 
 dev.off()
-
+}
 
 # View MCMC summary statistics
 #summary(mcmc_output)
@@ -506,13 +503,31 @@ logprob <- function(alpha, beta_roach1,beta_treatment,beta_senior,phi)
 logprob(0.1,0.2,0.3,0.5,0.1)
 
 
+neg_logprob <- tf_function(function(mypar){
+  alpha<-mypar[1]; beta_roach1<-mypar[2];beta_treatment<-mypar[3];beta_senior<-mypar[4];phi<-mypar[5];
+  x<- -tfd_log_prob(m,list(alpha, beta_roach1,beta_treatment,beta_senior,phi,y_data))
+  return(x)})
+
+neg_logprob(c(0.1,0.2,0.3,0.5,0.1))
+
+library(reticulate)
+start = tf$constant(c(0.1,0.2,0.3,0.5,0.1))  # Starting point for the search.
+optim_results = tfp$optimizer$nelder_mead_minimize(
+  neg_logprob, initial_vertex=start, func_tolerance=1e-08,
+  batch_evaluate_objective=FALSE)#,max_iterations=5000)
+optim_results$initial_objective_values
+optim_results$objective_value
+optim_results$position
+
+#res<-optim(c(0.1,0.2,0.3,0.5,0.1),fn=neglogprob,method="Nelder-Mead")
+
 
 # number of steps after burnin
-n_steps <- 100000
+n_steps <- 20000
 # number of chains
-n_chain <- 1
+n_chain <- 4
 # number of burnin steps
-n_burnin <- 20000
+n_burnin <- 10000
 
 set.seed(99999)
 
@@ -536,13 +551,18 @@ hmc <- mcmc_hamiltonian_monte_carlo(
 )
 
 # initial values to start the sampler - from prior
-c(alpha, beta_roach1,beta_treatment,beta_senior,phi, .) %<-% (m %>% tfd_sample(n_chain))
+#c(alpha, beta_roach1,beta_treatment,beta_senior,phi, .) %<-% (m %>% tfd_sample(n_chain))
+
+#c(alpha, beta_roach1,beta_treatment,beta_senior,phi, .) %<-% optim_results$position
+res<-matrix(rep(optim_results$position,n_chain),nrow=n_chain,byrow=TRUE)
+mylist<-apply(res,2,as_tensor,dtype=tf$float32)
+
 
 run_mcmc <- tf_function(function(kernel) {
   kernel %>% mcmc_sample_chain(
     num_results = n_steps,
     num_burnin_steps = n_burnin,
-    current_state = list(alpha, beta_roach1,beta_treatment,beta_senior,phi),
+    current_state = list(mylist[[1]], mylist[[2]],mylist[[3]],mylist[[4]],mylist[[5]]),
     seed=9999#,
     #parallel_iterations=1
   )
