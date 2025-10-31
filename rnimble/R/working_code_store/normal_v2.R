@@ -1,9 +1,32 @@
+################################################################################
+# This file fits a Bayesian linear regression (Gaussian) using public data set.
+#
+# It uses three different R Bayesian libraries:
+# 1. rstanarm (assumed the default use case)
+# 2. nimble - for comparison
+# 3. tensorflow - for comparison
+#
+# Note: rstanarm does some manipulation (centering and prior adjustment) which
+# need reflect in the the other packages
+# Documentation is currently very thin and code messy
+# chains need longer to run shorter for ease of testing
+#
+# Many libraries need installed and tensorflow can be problematic
+# Once the libraries are installed then the whole file can be sourced
+# and the output is "plot_negbin.pdf" which is a comparison of parameter
+# estimates
+#
+# F. Lewis 31-OCT-2025
+################################################################################
+
 rm(list=ls())
 setwd("/Users/work/rstan_nimble_proj")
 ### rstan nimble package project
 library(rstan)
 library(ggplot2)
 library(bayesplot)
+library(zeallot)
+library(purrr)
 theme_set(bayesplot::theme_default())
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
@@ -166,7 +189,7 @@ res2<-extract(fit,par=c("alpha","beta_wt"," beta_am","phi","intercept_0"))
 #lines(density(res2$beta_roach1),col="blue")
 
 if(FALSE){
-pdf("plot_gaus.pdf")
+pdf("plot_gaus_old.pdf")
 par(mfrow=c(1,1))
 plot(density(res_m[,"(Intercept)"]),col="green")
 lines(density(res2$intercept_0),col="orange")
@@ -338,7 +361,7 @@ size_sd_nim<-c(mcmc_output[,"sd"][[1]],
 
 # --- 5. Analyze Results ---
 if(FALSE){
-  pdf("plot_gaus1.pdf")
+  pdf("plot_gaus1_old.pdf")
 par(mfrow=c(1,1))
 plot(density(res_m[,"(Intercept)"]),col="green")
 lines(density(res2$intercept_0),col="orange")
@@ -372,12 +395,6 @@ wt_data <- tf$constant(mtcars$wt-mean(mtcars$wt), dtype = tf$float32)
 am_data <- tf$constant(mtcars$am-mean(mtcars$am), dtype = tf$float32)
 y_data <- tf$constant(mtcars$mpg, dtype = tf$float32)
 n_obs <- nrow(mtcars)
-
-#alpha ~ normal(0, 5.0);           // Prior for intercept
-#beta_wt ~ normal(0,rescaled_sd[1] );     // Prior for roach1 coefficient
-#beta_am ~ normal(0, rescaled_sd[2]);  // Prior for treatment coefficient
-#phi ~ exponential(rescaled_sd[3]); // this is actually 1/ rescaled scale
-
 
 # Define the joint distribution
 m <- tfd_joint_distribution_sequential(
@@ -505,9 +522,10 @@ beta_wt<-mcmc_trace_c[[2]]
 beta_am<-mcmc_trace_c[[3]]
 phi<-mcmc_trace_c[[4]]
 
-intercept_0<-alpha + beta_wt*-mean(mtcars$wt) + beta_am*-mean(mtcars$am);
+# need to re-locate prior back to original - reverse centering
+intercept_0 <- alpha + beta_wt*-mean(mtcars$wt) + beta_am*-mean(mtcars$am);
 
-pdf("plot_gaus2.pdf")
+pdf("plot_gaus.pdf")
 par(mfrow=c(1,1))
 plot(density(res_m[,"(Intercept)"]),col="green")
 lines(density(res2$intercept_0),col="orange")

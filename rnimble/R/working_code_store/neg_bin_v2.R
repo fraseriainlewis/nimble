@@ -1,3 +1,25 @@
+################################################################################
+# This file fits a Bayesian NegBin regression using public data set.
+#
+# It uses three different R Bayesian libraries:
+# 1. rstanarm (assumed the default use case)
+# 2. nimble - for comparison
+# 3. tensorflow - for comparison
+#
+# Notes: rstanarm does some manipulation (centering and prior adjustment) which
+# need reflect in the the other packages
+# Documentation is currently very thin and code messy
+# chains need longer to run shorter for ease of testing
+#
+# Many libraries need installed and tensorflow can be problematic
+# Once the libraries are installed then the whole file can be sourced
+# and the output is "plot_negbin.pdf" which is a comparison of parameter
+# estimates
+#
+# F. Lewis 31-OCT-2025
+################################################################################
+
+
 rm(list=ls())
 setwd("/Users/work/rstan_nimble_proj")
 ### rstan nimble package project
@@ -352,7 +374,7 @@ size_disp_nim<-c(mcmc_output[,"size"][[1]],
 
 # --- 5. Analyze Results ---
 
-par(mfrow=c(1,1))
+if(FALSE){par(mfrow=c(1,1))
 plot(density(res_m[,"(Intercept)"]),col="green")
 lines(density(res2$alpha),col="orange")
 lines(density(intercept_nim),col="slateblue")
@@ -372,9 +394,9 @@ lines(density(beta_senior_nim),col="slateblue")
 plot(density(res_m[,"reciprocal_dispersion"]),col="green")
 lines(density(res2$phi),col="orange")
 lines(density(size_disp_nim),col="slateblue")
+}
 
-
-if(FALSE){pdf("plot_negbin1.pdf")
+if(FALSE){pdf("plot_negbin1_old.pdf")
 par(mfrow=c(1,1))
 plot(density(res_m[,"(Intercept)"]),col="green")
 lines(density(res2$alpha),col="orange")
@@ -578,9 +600,9 @@ beta_roach1<-mcmc_trace_c[[2]]
 beta_treatment<-mcmc_trace_c[[3]]
 beta_senior<-mcmc_trace_c[[4]]
 phi<-mcmc_trace_c[[5]]
-plot(density(alpha))
+#plot(density(alpha))
 
-pdf("plot_negbin2.pdf")
+pdf("plot_negbin.pdf")
 par(mfrow=c(1,1))
 plot(density(res_m[,"(Intercept)"]),col="green")
 lines(density(res2$alpha),col="orange")
