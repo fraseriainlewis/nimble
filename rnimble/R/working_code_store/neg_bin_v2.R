@@ -32,8 +32,8 @@ theme_set(bayesplot::theme_default())
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
-library(tensorflow)
-library(tfprobability)
+#library(tensorflow)
+#library(tfprobability)
 
 library(rstanarm)
 library(rstanarm)
