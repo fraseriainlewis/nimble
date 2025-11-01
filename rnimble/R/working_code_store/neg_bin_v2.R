@@ -21,21 +21,17 @@
 
 
 rm(list=ls())
-setwd("/Users/work/rstan_nimble_proj")
+#setwd("/Users/work/rstan_nimble_proj")
 ### rstan nimble package project
-library(rstan)
-library(ggplot2)
-library(bayesplot)
+#library(rstan)
+#library(ggplot2)
+#library(bayesplot)
 library(zeallot)
 library(purrr)
-theme_set(bayesplot::theme_default())
-rstan_options(auto_write = TRUE)
+#theme_set(bayesplot::theme_default())
+#rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
-#library(tensorflow)
-#library(tfprobability)
-
-library(rstanarm)
 library(rstanarm)
 data(roaches)
 
