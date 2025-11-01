@@ -193,14 +193,14 @@ if(FALSE){
   par(mfrow=c(1,1))
   plot(density(res_m[,"(Intercept)"]),col="green")
   lines(density(res2$intercept_0),col="orange")
-  
-  
+
+
   plot(density(res_m[,"wt"]),col="green")
   lines(density(res2$beta_wt),col="orange")
-  
+
   plot(density(res_m[,"am"]),col="green")
   lines(density(res2$beta_am),col="orange")
-  
+
   plot(density(res_m[,"sigma"]),col="green")
   lines(density(res2$phi),col="orange")
   dev.off()
@@ -224,18 +224,18 @@ gaussian_regression_code <- nimbleCode({
   intercept ~ dnorm(0, sd = 5) # Weakly informative prior for intercept
   beta_wt ~ dnorm(0, sd = hypers[1]) # Weakly informative prior for roach1 coefficient
   beta_am ~ dnorm(0, sd = hypers[2]) # Weakly informative prior for treatment coefficient
-  
+
   # Prior for the Negative Binomial dispersion parameter (size)
   # 'size' must be positive. A Gamma distribution is a common choice for scale parameters.
   # dgamma(shape, rate) with small shape and rate implies a weak prior.
   #size ~ dgamma(0.01, 0.01) # Weakly informative prior for dispersion parameter
   sd ~ dexp(hypers[3])
-  
+
   mean_wt <- mean(wt[])
   mean_am <- mean(am[])
   wt_centered[1:N]<-wt[]-mean_wt
   am_centered[1:N]<-am[]-mean_am
-  
+
   # Likelihood for each observation
   for (i in 1:N) {
     # Linear predictor on the log scale (log_lambda_expected)
@@ -244,23 +244,23 @@ gaussian_regression_code <- nimbleCode({
     mu[i] <- intercept +
       beta_wt * wt_centered[i] +
       beta_am * am_centered[i]
-    
+
     # Convert lambda and size to 'prob' parameter for dnegbin
     # dnegbin(prob, size) has mean = size * (1 - prob) / prob
     # So, lambda[i] = size * (1 - prob[i]) / prob[i]
     # Rearranging for prob[i]: prob[i] = size / (size + lambda[i])
     # An equivalent form is prob[i] = 1 / (1 + lambda[i] / size)
     #prob[i] <- 1 / (1 + lambda[i] / size)
-    
+
     # Negative Binomial likelihood for the response variable 'y'
     y[i] ~ dnorm(mu[i], sd=sd)
   }
   intercept_0 <-intercept + beta_wt*-mean_wt + beta_am*-mean_am;
-  
+
   #log(mu[i]) <- beta0 + beta1 * x1[i] + beta2 * x2[i]
   # y[i] ~ dnegbin(prob = size/(size + mu[i]), size = size)
-  
-  
+
+
 })
 
 # --- 3. Prepare Data, Constants, and Initial Values ---
@@ -366,16 +366,16 @@ if(FALSE){
   plot(density(res_m[,"(Intercept)"]),col="green")
   lines(density(res2$intercept_0),col="orange")
   lines(density(intercept_nim),col="slateblue")
-  
-  
+
+
   plot(density(res_m[,"wt"]),col="green")
   lines(density(res2$beta_wt),col="orange")
   lines(density(beta_wt_nim),col="slateblue")
-  
+
   plot(density(res_m[,"am"]),col="green")
   lines(density(res2$beta_am),col="orange")
   lines(density(beta_am_nim),col="slateblue")
-  
+
   plot(density(res_m[,"sigma"]),col="green")
   lines(density(res2$phi),col="orange")
   lines(density(size_sd_nim),col="slateblue")
@@ -384,9 +384,7 @@ if(FALSE){
 
 ################################################################################
 ## Tensorflow - bonus
-library(reticulate)
-use_virtualenv("r-reticulate")
-py_config()
+
 library(tensorflow)
 library(tfprobability)
 
@@ -404,31 +402,31 @@ m <- tfd_joint_distribution_sequential(
   list(
     # Intercept (alpha)
     tfd_normal(loc = 0, scale = 5),
-    
+
     # Slope (beta_wt)
     tfd_normal(loc = 0, scale = rescaled_sd[1]),
     # Slope (beta_am)
     tfd_normal(loc = 0, scale = rescaled_sd[2]),
-    
+
     # Noise standard deviation (sigma)
     tfd_exponential(rate = rescaled_sd[3]),
-    
+
     # Observations: y = alpha + beta * x + noise
     function(sigma, beta_am,beta_wt, alpha) {
       # Compute linear mean: mu = alpha + beta * x
       # When sampling 3 times:
       # alpha: (3,), beta: (3,), x_data: (10,)
       # Need to broadcast to (3, 10)
-      
+
       alpha_expanded <- tf$expand_dims(alpha, -1L)  # (3, 1)
       beta_wt_expanded <- tf$expand_dims(beta_wt, -1L)    # (3, 1)
       beta_am_expanded <- tf$expand_dims(beta_am, -1L)    # (3, 1)
-      
+
       mu <- alpha_expanded + beta_wt_expanded * wt_data + + beta_am_expanded * am_data  # (3, 1) + (3, 1) * (10,) = (3, 10)
-      
+
       # Expand sigma to broadcast
       sigma_expanded <- tf$expand_dims(sigma, -1L)  # (3, 1)
-      
+
       # Create distribution for observations
       tfd_independent(
         tfd_normal(loc = mu, scale = sigma_expanded),
@@ -500,7 +498,7 @@ hmc <- mcmc_hamiltonian_monte_carlo(
 # initial values to start the sampler - from prior
 c(alpha, beta_wt,beta_am,phi, .) %<-% optim_results$position
 res<-matrix(rep(optim_results$position,n_chain),nrow=n_chain,byrow=TRUE)
-mylist<-apply(res,2,as_tensor,dtype=tf$float32)
+mylist<-apply(res,2,FUN=function(a){return(tf$constant(array(a),dtype=tf$float32))})
 
 #c(alpha, beta_wt,beta_am,phi, .) %<-% (m %>% tfd_sample(n_chain))
 

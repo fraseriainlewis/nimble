@@ -543,7 +543,7 @@ optim_results$position
 # number of steps after burnin
 n_steps <- 20000
 # number of chains
-n_chain <- 4
+n_chain <- 8
 # number of burnin steps
 n_burnin <- 10000
 
@@ -573,7 +573,7 @@ hmc <- mcmc_hamiltonian_monte_carlo(
 
 #c(alpha, beta_roach1,beta_treatment,beta_senior,phi, .) %<-% optim_results$position
 res<-matrix(rep(optim_results$position,n_chain),nrow=n_chain,byrow=TRUE)
-mylist<-apply(res,2,as_tensor,dtype=tf$float32)
+mylist<-apply(res,2,FUN=function(a){return(tf$constant(array(a),dtype=tf$float32))})
 
 
 run_mcmc <- tf_function(function(kernel) {

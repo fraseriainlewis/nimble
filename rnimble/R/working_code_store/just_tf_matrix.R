@@ -5,6 +5,7 @@
 # can change from shape=(1) to shape=() which impacts the optimizers
 #
 #
+#rm(list=ls())
 ## Tensorflow - bonus
 library(tensorflow)
 library(tfprobability)
@@ -114,11 +115,27 @@ optim_results$position
 # number of steps after burnin
 n_steps <- 20000
 # number of chains
-n_chain <- 4
+n_chain <- 10
 # number of burnin steps
 n_burnin <- 10000
 
-set.seed(99999)
+# bijector to map constrained parameters to real
+unconstraining_bijectors <- list(
+  tfb_identity(), tfb_identity(), tfb_identity(),tfb_identity(),tfb_exp())
+
+nuts <- mcmc_no_u_turn_sampler(
+  target_log_prob_fn = logprob,
+  step_size = list(0.5, 0.5, 0.5,0.5,0.5)
+) %>%
+  mcmc_transformed_transition_kernel(bijector = unconstraining_bijectors) %>%
+  mcmc_dual_averaging_step_size_adaptation(
+    num_adaptation_steps = round(n_burnin*0.8),
+    step_size_setter_fn = function(pkr, new_step_size)
+      pkr$`_replace`(
+        inner_results = pkr$inner_results$`_replace`(step_size = new_step_size)),
+    step_size_getter_fn = function(pkr) pkr$inner_results$step_size,
+    log_accept_prob_getter_fn = function(pkr) pkr$inner_results$log_accept_ratio
+  )
 
 hmc <- mcmc_hamiltonian_monte_carlo(
   target_log_prob_fn = logprob,
@@ -131,20 +148,12 @@ hmc <- mcmc_hamiltonian_monte_carlo(
   target_accept_prob = 0.75,
   exploration_shrinkage = 0.05,
   step_count_smoothing = 10,
-  decay_rate = 0.75,
-  step_size_setter_fn = NULL,
-  step_size_getter_fn = NULL,
-  log_accept_prob_getter_fn = NULL,
-  validate_args = FALSE,
-  name = NULL#,
+  decay_rate = 0.75
 )
-
-# initial values to start the sampler - from prior
-#c(alpha, beta_roach1,beta_treatment,beta_senior,phi, .) %<-% (m %>% tfd_sample(n_chain))
 
 #c(alpha, beta_roach1,beta_treatment,beta_senior,phi, .) %<-% optim_results$position
 res<-matrix(rep(optim_results$position,n_chain),nrow=n_chain,byrow=TRUE)
-mylist<-apply(res,2,as_tensor,dtype=tf$float32)
+mylist<-apply(res,2,FUN=function(a){return(tf$constant(array(a),dtype=tf$float32))})
 
 
 run_mcmc <- tf_function(function(kernel) {
@@ -159,7 +168,7 @@ run_mcmc <- tf_function(function(kernel) {
 )
 set.seed(9999)
 #run_mcmc <- tf_function(run_mcmc)
-system.time(mcmc_trace <- run_mcmc(hmc))
+print(system.time(mcmc_trace <- run_mcmc(hmc)))
 mcmc_trace_c<-lapply(mcmc_trace,FUN=function(a){return(c(as.matrix(a)))})
 
 alpha<-mcmc_trace_c[[1]]
@@ -169,6 +178,7 @@ beta_senior<-mcmc_trace_c[[4]]
 phi<-mcmc_trace_c[[5]]
 plot(density(alpha))
 
+cat("Approach 2 - mat mul\n")
 
 # APPROACH 2. use design matrix with intercept and offset included in this
 # Input data
@@ -273,34 +283,16 @@ optim_results$objective_value
 optim_results$position
 
 # number of steps after burnin
-n_steps <- 2000
+n_steps <- 20000
 # number of chains
-n_chain <- 2
+n_chain <- 10
 # number of burnin steps
-n_burnin <- 1000
+n_burnin <- 10000
 
-hmc <- mcmc_hamiltonian_monte_carlo(
-  target_log_prob_fn = logprob,
-  num_leapfrog_steps = 3,
-  # one step size for each parameter
-  step_size = list(0.5, 0.5, 0.5,0.5,0.5),
-) %>% mcmc_dual_averaging_step_size_adaptation(
-  num_adaptation_steps = round(n_burnin*0.8),
-  target_accept_prob = 0.75,
-  exploration_shrinkage = 0.05,
-  step_count_smoothing = 10,
-  decay_rate = 0.75,
-  step_size_setter_fn = NULL,
-  step_size_getter_fn = NULL,
-  log_accept_prob_getter_fn = NULL,
-  validate_args = FALSE,
-  name = NULL#,
-)
 
 # bijector to map constrained parameters to real
 unconstraining_bijectors <- list(
   tfb_identity(), tfb_identity(), tfb_identity(),tfb_identity(),tfb_exp())
-
 
 nuts <- mcmc_no_u_turn_sampler(
   target_log_prob_fn = logprob,
@@ -316,9 +308,24 @@ nuts <- mcmc_no_u_turn_sampler(
     log_accept_prob_getter_fn = function(pkr) pkr$inner_results$log_accept_ratio
   )
 
+hmc <- mcmc_hamiltonian_monte_carlo(
+  target_log_prob_fn = logprob,
+  num_leapfrog_steps = 3,
+  # one step size for each parameter
+  step_size = list(0.5, 0.5, 0.5,0.5,0.5),
+  seed=99999
+) %>% mcmc_dual_averaging_step_size_adaptation(
+  num_adaptation_steps = round(n_burnin*0.8),
+  target_accept_prob = 0.75,
+  exploration_shrinkage = 0.05,
+  step_count_smoothing = 10,
+  decay_rate = 0.75
+)
+
+
 #c(alpha, beta_roach1,beta_treatment,beta_senior,phi, .) %<-% optim_results$position
 res<-matrix(rep(optim_results$position,n_chain),nrow=n_chain,byrow=TRUE)
-mylist<-apply(res,2,as_tensor,dtype=tf$float32)
+mylist<-apply(res,2,FUN=function(a){return(tf$constant(array(a),dtype=tf$float32))})
 
 run_mcmc <- tf_function(function(kernel) {
   kernel %>% mcmc_sample_chain(
@@ -332,7 +339,7 @@ run_mcmc <- tf_function(function(kernel) {
 )
 
 #run_mcmc <- tf_function(run_mcmc)
-system.time(mcmc_trace <- run_mcmc(nuts))
+print(system.time(mcmc_trace <- run_mcmc(hmc)))
 mcmc_trace_c<-lapply(mcmc_trace,FUN=function(a){return(c(as.matrix(a)))})
 
 alpha<-mcmc_trace_c[[1]]
@@ -341,4 +348,4 @@ beta_treatment<-mcmc_trace_c[[3]]
 beta_senior<-mcmc_trace_c[[4]]
 phi<-mcmc_trace_c[[5]]
 
-lines(density(alpha),col="blue")
+lines(density(alpha),col="magenta")
