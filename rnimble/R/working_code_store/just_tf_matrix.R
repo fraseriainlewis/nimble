@@ -273,11 +273,11 @@ optim_results$objective_value
 optim_results$position
 
 # number of steps after burnin
-n_steps <- 20000
+n_steps <- 2000
 # number of chains
-n_chain <- 4
+n_chain <- 2
 # number of burnin steps
-n_burnin <- 10000
+n_burnin <- 1000
 
 hmc <- mcmc_hamiltonian_monte_carlo(
   target_log_prob_fn = logprob,
@@ -297,6 +297,25 @@ hmc <- mcmc_hamiltonian_monte_carlo(
   name = NULL#,
 )
 
+# bijector to map constrained parameters to real
+unconstraining_bijectors <- list(
+  tfb_identity(), tfb_identity(), tfb_identity(),tfb_identity(),tfb_exp())
+
+
+nuts <- mcmc_no_u_turn_sampler(
+  target_log_prob_fn = logprob,
+  step_size = list(0.5, 0.5, 0.5,0.5,0.5)
+) %>%
+  mcmc_transformed_transition_kernel(bijector = unconstraining_bijectors) %>%
+  mcmc_dual_averaging_step_size_adaptation(
+    num_adaptation_steps = round(n_burnin*0.8),
+    step_size_setter_fn = function(pkr, new_step_size)
+      pkr$`_replace`(
+        inner_results = pkr$inner_results$`_replace`(step_size = new_step_size)),
+    step_size_getter_fn = function(pkr) pkr$inner_results$step_size,
+    log_accept_prob_getter_fn = function(pkr) pkr$inner_results$log_accept_ratio
+  )
+
 #c(alpha, beta_roach1,beta_treatment,beta_senior,phi, .) %<-% optim_results$position
 res<-matrix(rep(optim_results$position,n_chain),nrow=n_chain,byrow=TRUE)
 mylist<-apply(res,2,as_tensor,dtype=tf$float32)
@@ -313,7 +332,7 @@ run_mcmc <- tf_function(function(kernel) {
 )
 
 #run_mcmc <- tf_function(run_mcmc)
-system.time(mcmc_trace <- run_mcmc(hmc))
+system.time(mcmc_trace <- run_mcmc(nuts))
 mcmc_trace_c<-lapply(mcmc_trace,FUN=function(a){return(c(as.matrix(a)))})
 
 alpha<-mcmc_trace_c[[1]]
@@ -322,4 +341,4 @@ beta_treatment<-mcmc_trace_c[[3]]
 beta_senior<-mcmc_trace_c[[4]]
 phi<-mcmc_trace_c[[5]]
 
-lines(density(alpha),col="magenta")
+lines(density(alpha),col="blue")
