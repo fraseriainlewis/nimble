@@ -322,4 +322,4 @@ beta_treatment<-mcmc_trace_c[[3]]
 beta_senior<-mcmc_trace_c[[4]]
 phi<-mcmc_trace_c[[5]]
 
-lines(density(alpha),col="red")
+lines(density(alpha),col="magenta")
