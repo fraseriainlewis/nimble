@@ -85,7 +85,7 @@ print(neg_log_prob_fn(start))
 if(True):
     start = tf.constant([0.1,0.2,0.3,0.5,0.1],dtype = tf.float32)  # Starting point for the search.
     optim_results = tfp.optimizer.nelder_mead_minimize(neg_log_prob_fn,
-                 initial_vertex=start, func_tolerance=1e-08)
+                 initial_vertex=start, func_tolerance=1e-08,max_iterations=100)
                  
     print(optim_results.initial_objective_values)
     print(optim_results.objective_value)
@@ -100,35 +100,76 @@ unconstraining_bijectors = [
     tfb.Exp()
 ] 
  
-num_results=1000 
-num_burnin_steps=500
+num_results=5000 
+num_burnin_steps=1000
  
 sampler = tfp.mcmc.TransformedTransitionKernel(
     tfp.mcmc.NoUTurnSampler(
         target_log_prob_fn=log_prob_fn,
-        step_size=tf.cast(0.5, tf.float32)), #tf.cast(0.1, tf.float64)),
+        step_size=tf.cast(0.5, tf.float32)), #tf.cast(0.1, tf.float32)),
     bijector=unconstraining_bijectors
     )
 
 adaptive_sampler = tfp.mcmc.DualAveragingStepSizeAdaptation(
     inner_kernel=sampler,
     num_adaptation_steps=int(0.8 * num_burnin_steps),
-    target_accept_prob=tf.cast(0.75, tf.float64))
+    target_accept_prob=tf.cast(0.75, tf.float32))
 
 
-initial_state = optim_results.position
-print(initial_state)
+istate = optim_results.position
+#print(initial_state)
 
-current_state=[tf.constant([2.8],dtype = tf.float32),
-               tf.constant([1.3],dtype = tf.float32),
-               tf.constant([-0.76],dtype = tf.float32),
-               tf.constant([-0.33],dtype = tf.float32),
-               tf.constant([0.27],dtype = tf.float32)]#,
-#                     tf.constant(1.0,dtype = tf.float32),
-#                     tf.constant(1.0,dtype = tf.float32),
-#                     tf.constant(1.0,dtype = tf.float32),
-#                     tf.constant(1.0,dtype = tf.float32)]
+print("here initial_state")
+#print(initial_state)
+
+#current_state=initial_state
+
+#current_state=[tf.constant([2.8],dtype = tf.float32),
+#               tf.constant([1.3],dtype = tf.float32),
+#               tf.constant([-0.76],dtype = tf.float32),
+#               tf.constant([-0.33],dtype = tf.float32),
+#               tf.constant([0.27],dtype = tf.float32)]
+               
+#current_state=[tf.constant([initial_state[[0]].numpy()],dtype = tf.float32),
+#               tf.constant([initial_state[[1]].numpy()],dtype = tf.float32),
+#               tf.constant([initial_state[[2]].numpy()],dtype = tf.float32),
+#               tf.constant([initial_state[[3]].numpy()],dtype = tf.float32),
+#               tf.constant([initial_state[[4]].numpy()],dtype = tf.float32)]
+
+n_chains=12
+current_state = [tf.expand_dims(tf.repeat(istate[0],repeats=n_chains,axis=-1),axis=-1),
+                 tf.expand_dims(tf.repeat(istate[1],repeats=n_chains,axis=-1),axis=-1),
+                 tf.expand_dims(tf.repeat(istate[2],repeats=n_chains,axis=-1),axis=-1),
+                 tf.expand_dims(tf.repeat(istate[3],repeats=n_chains,axis=-1),axis=-1),
+                 tf.expand_dims(tf.repeat(istate[4],repeats=n_chains,axis=-1),axis=-1)
+                 ]
+print("current state")
 print(current_state)
+# 3. Add a new dimension and then repeat
+# First, reshape from (3,) to (3, 1)
+#input_expanded = tf.expand_dims(initial_state, axis=-1) 
+#print(f"Expanded Shape: {input_expanded.shape}\n") # Shape is (3, 1)
+
+# Now, repeat the values 3 times along the new last axis (axis=-1)
+#output_matrix = tf.repeat(input_expanded, repeats=1, axis=-1)
+
+#print("matrix")
+#print(output_matrix)
+#exit()
+
+
+
+
+
+#a=tf.constant([-0.01205934,  2.8705761, -0.5943442, 0.59550726, 0.0756483], dtype=tf.float32)
+
+#print("here current_state")
+#print(current_state)
+#print("here current_state2")
+#print(current_state2)
+#exit()
+
+#print(current_state)
 
 #initial_state = [tf.cast(x, tf.float32) for x in [1., 1., 1., 1., 1.]]
 
@@ -152,6 +193,10 @@ t0 = time.time()
 samples, kernel_results = do_sampling()
 t1 = time.time()
 print("Inference ran in {:.2f}s.".format(t1-t0))
+
+#print(samples)
+#print(kernel_results.shape)
+
 
 
 
