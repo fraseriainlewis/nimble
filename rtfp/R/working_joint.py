@@ -136,7 +136,7 @@ print("here initial_state")
 #               tf.constant([initial_state[[3]].numpy()],dtype = tf.float32),
 #               tf.constant([initial_state[[4]].numpy()],dtype = tf.float32)]
 
-n_chains=12
+n_chains=4
 current_state = [tf.expand_dims(tf.repeat(istate[0],repeats=n_chains,axis=-1),axis=-1),
                  tf.expand_dims(tf.repeat(istate[1],repeats=n_chains,axis=-1),axis=-1),
                  tf.expand_dims(tf.repeat(istate[2],repeats=n_chains,axis=-1),axis=-1),
