@@ -38,32 +38,49 @@ test_call_to_tfd <- function() {
 #' @examples
 #'
 #' test_call_to_tfd()
-script_tfd <- function() {
+script_tfd <- function(x) {
   print("calling....\n")
   a<-10.0
-  print(tfd_bernoulli(probs=0.5)%>%tfd_sample(5L))
+  loc_x<-x;
+  assign("loc_x", loc_x, envir = .GlobalEnv)
+  #print(tfd_bernoulli(probs=0.5)%>%tfd_sample(5L))
   mystring<-"
 import tensorflow as tf
 import tensorflow_probability as tfd
 
 fromr= r.a + 10
+fromr2=r.roaches
+print(type(r.roaches))
+print(r.loc_x)
+#print()
 "
   py_run_string(mystring)
 cat("got=",py$fromr,"\n")
+
+# Clean up global environment
+rm(loc_x, envir = .GlobalEnv)
 
 }
 
 #' Add together two numbers
 #'
 #' @description A short description...
-#' @param data data.frame of the data to fit to the model
+#' @param thedata data.frame of the data to fit to the model
 #' @returns currently nothing
+#' @examples
+#' library(rstanarm)
+#' data(roaches)
+#' roaches$roach1<-roaches$roach1/100;# manual
+#' glm_negbin(thedata=roaches)
+
 #' @export
-glm_negbin<-function(data=NULL) {
-  library(reticulate)
-  setwd("~/rstan_nimble_proj/nimble/rtfp/R/py")
-  #py_run_file("working_joint.py")
-bigstring<-r"(
+glm_negbin<-function(thedata=NULL) {
+  data_l=thedata # local copy inside frame otherwise python cant find it
+  assign("data_l", data_l, envir = .GlobalEnv)
+
+  #py$data<-thedata # this is needed as explicitly passes argument into py
+
+  bigstring<-r"(
 
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -73,13 +90,12 @@ import numpy as np
 import pandas as pd
 import time
 
-roaches=pd.read_csv('roaches.csv')
-
-roach_data=tf.convert_to_tensor(roaches.roach1/100, dtype = tf.float32)
-trt_data=tf.convert_to_tensor(roaches.treatment, dtype = tf.float32)
-snr_data=tf.convert_to_tensor(roaches.senior, dtype = tf.float32)
-exposure_data=tf.convert_to_tensor(roaches.exposure2, dtype = tf.float32)
-y_data=tf.convert_to_tensor(roaches.y, dtype = tf.float32)
+data=r.data_l
+y_data=tf.convert_to_tensor(data.iloc[:,0], dtype = tf.float32)
+roach_data=tf.convert_to_tensor(data.iloc[:,1], dtype = tf.float32)
+trt_data=tf.convert_to_tensor(data.iloc[:,2], dtype = tf.float32)
+snr_data=tf.convert_to_tensor(data.iloc[:,3], dtype = tf.float32)
+exposure_data=tf.convert_to_tensor(data.iloc[:,4], dtype = tf.float32)
 
 def make_observed_dist(phi, beta_senior,beta_treatment, beta_roach,alpha):
     """Function to create the observed Normal distribution."""
@@ -152,7 +168,7 @@ print(neg_log_prob_fn(start))
 if(True):
     start = tf.constant([0.1,0.2,0.3,0.5,0.1],dtype = tf.float32)  # Starting point for the search.
     optim_results = tfp.optimizer.nelder_mead_minimize(neg_log_prob_fn,
-                 initial_vertex=start, func_tolerance=1e-08,max_iterations=100)
+                 initial_vertex=start, func_tolerance=1e-04,max_iterations=1000)
 
     print(optim_results.initial_objective_values)
     print(optim_results.objective_value)
@@ -167,8 +183,8 @@ unconstraining_bijectors = [
     tfb.Exp()
 ]
 
-num_results=50000
-num_burnin_steps=5000
+num_results=1000
+num_burnin_steps=1000
 
 sampler = tfp.mcmc.TransformedTransitionKernel(
     tfp.mcmc.NoUTurnSampler(
@@ -268,34 +284,36 @@ print("Inference ran in {:.2f}s.".format(t1-t0))
 
 py_run_string(bigstring)
 # this create output as "samples"
+# Clean up global environment
+rm(data_l, envir = .GlobalEnv)
 
 #extract out parameter phi from mcmc output
 if(1){
   parid<-5
-par_samples<-py$samples[[parid]]; # samples indexes 1-no. params. this is 5th parameter all chains
-n_samples<-dim(par_samples)[1] # PER CHAIN
-chain1<-rep(NA,n_samples);
-chain2<-rep(NA,n_samples);
-chain3<-rep(NA,n_samples);
-chain4<-rep(NA,n_samples);
+  par_samples<-py$samples[[parid]]; # samples indexes 1-no. params. this is 5th parameter all chains
+  n_samples<-dim(par_samples)[1] # PER CHAIN
+  chain1<-rep(NA,n_samples);
+  chain2<-rep(NA,n_samples);
+  chain3<-rep(NA,n_samples);
+  chain4<-rep(NA,n_samples);
 
-for(i in 0:(n_samples-1)){ # 0-indexing
-  chain1[i+1]<-par_samples[[i]]$numpy()[1]
-  chain2[i+1]<-par_samples[[i]]$numpy()[2]
-  chain3[i+1]<-par_samples[[i]]$numpy()[3]
-  chain4[i+1]<-par_samples[[i]]$numpy()[4]
-}
+  for(i in 0:(n_samples-1)){ # 0-indexing
+    chain1[i+1]<-par_samples[[i]]$numpy()[1]
+    chain2[i+1]<-par_samples[[i]]$numpy()[2]
+    chain3[i+1]<-par_samples[[i]]$numpy()[3]
+    chain4[i+1]<-par_samples[[i]]$numpy()[4]
+  }
 
-par(mfrow=c(1,2))
-plot(chain1,type="l",col="black")
-lines(chain2,col="red")
-lines(chain3,col="magenta")
-lines(chain4,col="blue")
+  par(mfrow=c(1,2))
+  plot(chain1,type="l",col="black")
+  lines(chain2,col="red")
+  lines(chain3,col="magenta")
+  lines(chain4,col="blue")
 
-plot(density(chain1),col="black")
-lines(density(chain2),col="red")
-lines(density(chain3),col="magenta")
-lines(density(chain4),col="blue")
+  plot(density(chain1),col="black")
+  lines(density(chain2),col="red")
+  lines(density(chain3),col="magenta")
+  lines(density(chain4),col="blue")
 }
 
 
