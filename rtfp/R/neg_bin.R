@@ -41,6 +41,7 @@ test_call_to_tfd <- function() {
 script_tfd <- function() {
   print("calling....\n")
   a<-10.0
+  py$a<-a
   #loc_x<-x;
   #assign("loc_x", loc_x, envir = .GlobalEnv)
   #print(tfd_bernoulli(probs=0.5)%>%tfd_sample(5L))
@@ -48,14 +49,15 @@ script_tfd <- function() {
 import tensorflow as tf
 import tensorflow_probability as tfd
 
-#fromr= r.a + 10
+print(a)
+#fromr= r.a
 #fromr2=r.roaches
 #print(type(r.roaches))
 #print(r.loc_x)
-#print()
+#print(fromr)
 "
-#  py_run_string(mystring)
-#cat("got=",py$fromr,"\n")
+  py_run_string(mystring)
+cat("got=",py$a,"\n")
 
 # Clean up global environment
 #rm(loc_x, envir = .GlobalEnv)
@@ -75,9 +77,9 @@ import tensorflow_probability as tfd
 
 #' @export
 glm_negbin<-function(thedata=NULL) {
-  data_l=thedata # local copy inside frame otherwise python cant find it
-  assign("data_l", data_l, envir = .GlobalEnv)
-
+  #data_l=thedata # local copy inside frame otherwise python cant find it
+  #assign("data_l", data_l, envir = .GlobalEnv)
+  py$data<-r_to_py(thedata)
   #py$data<-thedata # this is needed as explicitly passes argument into py
 
   bigstring<-r"(
@@ -90,7 +92,7 @@ import numpy as np
 import pandas as pd
 import time
 
-data=r.data_l
+#data=r.data_l
 y_data=tf.convert_to_tensor(data.iloc[:,0], dtype = tf.float32)
 roach_data=tf.convert_to_tensor(data.iloc[:,1], dtype = tf.float32)
 trt_data=tf.convert_to_tensor(data.iloc[:,2], dtype = tf.float32)

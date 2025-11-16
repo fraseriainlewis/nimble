@@ -7,11 +7,11 @@ data(roaches)
 roaches$roach1<-roaches$roach1/100;# manual
 
 glm_negbin<-function(thedata=NULL) {
-  data_l=thedata # local copy inside frame otherwise python cant find it
-  assign("data_l", data_l, envir = .GlobalEnv)
+  #data_l=thedata # local copy inside frame otherwise python cant find it
+  #assign("data_l", data_l, envir = .GlobalEnv)
 
-  #py$data<-thedata # this is needed as explicitly passes argument into py
-
+  py$data<-r_to_py(thedata) # this is needed as explicitly passes argument into py
+  #print(thedata)
   bigstring<-r"(
 
 import tensorflow as tf
@@ -22,7 +22,8 @@ import numpy as np
 import pandas as pd
 import time
 
-data=r.data_l
+#data=r.data_l
+
 y_data=tf.convert_to_tensor(data.iloc[:,0], dtype = tf.float32)
 roach_data=tf.convert_to_tensor(data.iloc[:,1], dtype = tf.float32)
 trt_data=tf.convert_to_tensor(data.iloc[:,2], dtype = tf.float32)
@@ -214,10 +215,12 @@ print("Inference ran in {:.2f}s.".format(t1-t0))
 
 )"
 
+#print(py$data)
+
 py_run_string(bigstring)
 # this create output as "samples"
 # Clean up global environment
-rm(data_l, envir = .GlobalEnv)
+#rm(data_l, envir = .GlobalEnv)
 
 #extract out parameter phi from mcmc output
 if(1){
