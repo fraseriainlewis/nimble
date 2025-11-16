@@ -38,27 +38,27 @@ test_call_to_tfd <- function() {
 #' @examples
 #'
 #' test_call_to_tfd()
-script_tfd <- function(x) {
+script_tfd <- function() {
   print("calling....\n")
   a<-10.0
-  loc_x<-x;
-  assign("loc_x", loc_x, envir = .GlobalEnv)
+  #loc_x<-x;
+  #assign("loc_x", loc_x, envir = .GlobalEnv)
   #print(tfd_bernoulli(probs=0.5)%>%tfd_sample(5L))
   mystring<-"
 import tensorflow as tf
 import tensorflow_probability as tfd
 
-fromr= r.a + 10
-fromr2=r.roaches
-print(type(r.roaches))
-print(r.loc_x)
+#fromr= r.a + 10
+#fromr2=r.roaches
+#print(type(r.roaches))
+#print(r.loc_x)
 #print()
 "
-  py_run_string(mystring)
-cat("got=",py$fromr,"\n")
+#  py_run_string(mystring)
+#cat("got=",py$fromr,"\n")
 
 # Clean up global environment
-rm(loc_x, envir = .GlobalEnv)
+#rm(loc_x, envir = .GlobalEnv)
 
 }
 
